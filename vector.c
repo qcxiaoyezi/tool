@@ -3,11 +3,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+#define VEC_DEBUG_FLAG 1    /*打开输出*/
+/********************************************************************************************/
+/*******************************           宏         ***************************************/
+/********************************************************************************************/
+
 #if VEC_DEBUG_FLAG
 #define VEC_DEBUG(fmt,args...) printf("DEBUG %s-%d: "fmt"\n",__FUNCTION__,__LINE__,## args);
 #else
 #define VEC_DEBUG(fmt,args...)
 #endif
+
+#define VEC_FREE(ptr) do{if(0==(ptr))break; free(ptr); ptr=0; }while(0)
 
 /********************************************************************************************/
 /*******************************       静态函数声明     ***************************************/
@@ -17,11 +25,11 @@ static int Vec_AppendItemCount(vector_t* pVec, int num);
 
 
 /********************************************************************************************/
-/*******************************       函数实现        ***************************************/
+/*******************************         函数实现      ***************************************/
 /********************************************************************************************/
 
 
-/*constructs a empty vector*/
+/*构建一个新的向量*/
 vector_t* Vec_CreateNew(int itemSize, int itemMaxCount)
 {
     vector_t* pVec = 0;
@@ -34,13 +42,13 @@ vector_t* Vec_CreateNew(int itemSize, int itemMaxCount)
 
         pVec->itemSize = itemSize;
         pVec->itemCount = 0;
-        pVec->itemMaxCount = itemMaxCount;
-        pVec->itemMaxCountReal = 65535;
+        pVec->itemCapacity = itemMaxCount;
+        pVec->itemMaxCapacity = 65535;
 
         pVec->head = 0;
         pVec->tail = 0;
 
-        pVec->pDataBuff = (char*)malloc(pVec->itemSize*pVec->itemMaxCount);
+        pVec->pDataBuff = (char*)malloc(pVec->itemSize*pVec->itemCapacity);
         if(0==pVec->pDataBuff) break;
 
         return pVec;
@@ -49,7 +57,7 @@ vector_t* Vec_CreateNew(int itemSize, int itemMaxCount)
     return 0;
 }
 
-/*delete a vector*/
+/*销毁一个向量*/
 void Vec_Delete(vector_t *pVec)
 {
     if(0==pVec) return;
@@ -57,7 +65,7 @@ void Vec_Delete(vector_t *pVec)
     VEC_FREE(pVec);
 }
 
-/*remove all item from the vector*/
+/*清空一个向量*/
 void Vec_Clear(vector_t *pVec)
 {
     if(0==pVec) return;
@@ -66,14 +74,14 @@ void Vec_Clear(vector_t *pVec)
     pVec->itemCount = 0;
 }
 
-/*resize the pDataBuff size to contain more or less item*/
+/*改变一个向量的容量*/
 int Vec_Resize(vector_t *pVec, unsigned int count)
 {
     if(0==pVec) return -1;
-    if(pVec->itemMaxCount == count) return 0;
-    if(pVec->itemMaxCountReal < count) return -1;
+    if(pVec->itemCapacity == count) return 0;
+    if(pVec->itemMaxCapacity < count) return -1;
 
-    Vec_Foreach_Variable;
+    VEC_FOREACH_VARIABLE;
     char  *pNewBuff   = 0;
     char  *pDst       = 0;
     char  *pSrc       = 0;
@@ -82,16 +90,16 @@ int Vec_Resize(vector_t *pVec, unsigned int count)
         pNewBuff = (char*)malloc(pVec->itemSize * count);
         if(0==pNewBuff) break;
 
-        Vec_Foreach(pVec){
-            if(Vec_Foreach_Index >= count) break;
-            pSrc = Vec_Foreach_Value;
-            pDst = Vec_Foreach_Index*pVec->itemSize + pNewBuff;
+        VEC_FOREACH(pVec){
+            if(VEC_FOREACH_INDEX >= count) break;
+            pSrc = VEC_FOREACH_VALUE;
+            pDst = VEC_FOREACH_INDEX*pVec->itemSize + pNewBuff;
             memcpy(pDst,pSrc,pVec->itemSize);
         }
 
-        pVec->itemCount = Vec_Foreach_Index;
-        pVec->itemMaxCount = count;
-        pVec->head = VEC_INDEX(pVec,Vec_Foreach_Index);
+        pVec->itemCount = VEC_FOREACH_INDEX;
+        pVec->itemCapacity = count;
+        pVec->head = VEC_INDEX(pVec,VEC_FOREACH_INDEX);
         pVec->tail = 0;
 
         VEC_FREE(pVec->pDataBuff);
@@ -102,19 +110,19 @@ int Vec_Resize(vector_t *pVec, unsigned int count)
     return -1;
 }
 
-/*inserts 'value' at index position 'index' in the vector*/
+/*在 index 位置插入一个新的 item*/
 int Vec_Insert(vector_t *pVec, void *pValue, int index)
 {
     return Vec_InsertEx(pVec, pValue, index, 1);
 }
 
-/*inserts 'pValue' at index position 'index' in the vector*/
+/*在 index 位置插入一个或多个新的 item*/
 int Vec_InsertEx(vector_t *pVec, void *pValue, unsigned int index, unsigned int num)
 {
     if(0==pVec || 0==pValue) return -1;
     if(index >= pVec->itemCount) index = pVec->itemCount;
 
-    Vec_Foreach_Variable;
+    VEC_FOREACH_VARIABLE;
     char          *pSrc = 0;
     char          *pDst = 0;
     int            rsl  = 0;
@@ -125,10 +133,10 @@ int Vec_InsertEx(vector_t *pVec, void *pValue, unsigned int index, unsigned int 
         rsl = Vec_AppendItemCount(pVec,num);
         if(0!=rsl) break;
 
-        Vec_Foreach(pVec){
-            if(index+Vec_Foreach_Index >= pVec->itemCount) {break;}
-            pSrc = Vec_Foreach_Value_Reverse;
-            pDst = Vec_Foreach_Value_Reverse_Ex(num);
+        VEC_FOREACH(pVec){
+            if(index+VEC_FOREACH_INDEX >= pVec->itemCount) {break;}
+            pSrc = VEC_FOREACH_VALUE_REVERSE;
+            pDst = VEC_FOREACH_VALUE_REVERSE_EX(num);
             memcpy(pDst,pSrc,pVec->itemSize);
         }
         for(i=0;i<num;i++){
@@ -144,7 +152,7 @@ int Vec_InsertEx(vector_t *pVec, void *pValue, unsigned int index, unsigned int 
     return -1;
 }
 
-/*Inserts 'pValue' at the beginning of the vector*/
+/*在头部插入一个新的 item*/
 int Vec_PushFront(vector_t *pVec, void *pValue)
 {
     if(0==pVec || 0==pValue) return -1;
@@ -166,7 +174,7 @@ int Vec_PushFront(vector_t *pVec, void *pValue)
     return -1;
 }
 
-/*inserts 'pValue' at the end of the vector*/
+/*在尾部插入一个新的 item*/
 int Vec_PushBack(vector_t *pVec, void *pValue)
 {
     if(0==pVec || 0==pValue) return -1;
@@ -188,13 +196,13 @@ int Vec_PushBack(vector_t *pVec, void *pValue)
     return -1;
 }
 
-/*remvoe the item at 'index' position*/
+/*删除 index 位置的 item*/
 int Vec_RemoveAt(vector_t *pVec,int index)
 {
     return Vec_RemoveAtEx(pVec,index,1);
 }
 
-/*remvoe multiple item at 'index' position*/
+/*删除从 index 位置开始的一个或多个 item*/
 int Vec_RemoveAtEx(vector_t *pVec, unsigned int index, unsigned int num)
 {
     if(0==pVec) return -1;
@@ -220,7 +228,7 @@ int Vec_RemoveAtEx(vector_t *pVec, unsigned int index, unsigned int num)
     return -1;
 }
 
-/*remove the frist item in the list*/
+/*删除第一个item*/
 int Vec_RemoveFrist(vector_t *pVec)
 {
     if(0==pVec) return -1;
@@ -235,7 +243,7 @@ int Vec_RemoveFrist(vector_t *pVec)
     return -1;
 }
 
-/*remove the last item in the list*/
+/**删除最后一个item*/
 int Vec_RemoveLast(vector_t *pVec)
 {
     if(0==pVec) return -1;
@@ -249,14 +257,14 @@ int Vec_RemoveLast(vector_t *pVec)
     return -1;
 }
 
-/*remove the item at index position 'index' and return it*/
+/*取出 index 位置 item 的内容并移除它*/
 int Vec_TakeAt(vector_t *pVec, void *pBuff, unsigned int index)
 {
     unsigned int num = 1;
     return Vec_TakeAtEx(pVec,pBuff,index,&num);
 }
 
-/*remove multiple item at index position 'index' and return it*/
+/*取出从 index 位置开始的一个或多个 item 的内容并移除它们*/
 int Vec_TakeAtEx(vector_t *pVec, void *pBuff, unsigned int index, unsigned int *num)
 {
     if(0==pVec) return -1;
@@ -279,7 +287,7 @@ int Vec_TakeAtEx(vector_t *pVec, void *pBuff, unsigned int index, unsigned int *
     return -1;
 }
 
-/*remove the frist itme in the vector and return it*/
+/*取出第一个 item 的内容并移除它*/
 int Vec_PopFront(vector_t *pVec, void *pBuff)
 {
     if(0==pVec) return -1;
@@ -300,7 +308,7 @@ int Vec_PopFront(vector_t *pVec, void *pBuff)
     return -1;
 }
 
-/*remove the last item in the vector and return it*/
+/*取出最后一个 item 的内容并移除它*/
 int Vec_PopBack(vector_t *pVec, void *pBuff)
 {
     if(0==pVec) return -1;
@@ -320,7 +328,7 @@ int Vec_PopBack(vector_t *pVec, void *pBuff)
     return -1;
 }
 
-/*return the item at 'index' position*/
+/*返回 index 位置 item 的内容指针*/
 void* Vec_At(vector_t *pVec,unsigned int index)
 {
     if(0==pVec) return 0;
@@ -328,19 +336,19 @@ void* Vec_At(vector_t *pVec,unsigned int index)
     return VEC_INDEX_VALUE(pVec,pVec->tail+index);
 }
 
-/*return the frist item in the vector*/
+/*返回第一个 item 的内容指针*/
 void* Vec_Frist(vector_t *pVec)
 {
     return Vec_At(pVec,0);
 }
 
-/*return the last item in the vector*/
+/*返回最后一个 item 的内容指针*/
 void *Vec_Last(vector_t *pVec)
 {
     return Vec_At(pVec,pVec->itemCount-1);
 }
 
-/*return the number of items in the vector*/
+/*返回一个向量当前 item 个数*/
 int Vec_Count(vector_t *pVec)
 {
     if(0==pVec) return -1;
@@ -363,11 +371,11 @@ static int Vec_AppendItemCount(vector_t* pVec, int addCount)
 
     do{
         minCount = pVec->itemCount+addCount;
-        if(minCount > pVec->itemMaxCountReal) break;
+        if(minCount > pVec->itemMaxCapacity) break;
 
-        if(minCount > pVec->itemMaxCount){
-            newCount = pVec->itemMaxCount*2;
-            if(newCount > pVec->itemMaxCountReal) newCount = pVec->itemMaxCountReal;
+        if(minCount > pVec->itemCapacity){
+            newCount = pVec->itemCapacity*2;
+            if(newCount > pVec->itemMaxCapacity) newCount = pVec->itemMaxCapacity;
             if(newCount < minCount) newCount = minCount;
 
             rsl = Vec_Resize(pVec,newCount);

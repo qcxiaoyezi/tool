@@ -5,103 +5,101 @@
 extern "C" {
 #endif
 
-#define List_FREE(P) if(0!=P){free(P); P=0;}
+/*链表节点结构体*/
+typedef struct listnode_t{
+    void                *pData;              /*数据地址*/
+    int                  isMark;             /*是否被标记*/
+    struct listnode_t   *pPrev;              /*前一个节点*/
+    struct listnode_t   *pNext;              /*后一个节点*/
+}listnode_t;
 
-typedef struct ListNode{
-    struct ListNode *previous;
-    struct ListNode *next;
-    void *data;
-}ListNode;
+/*链表结构体*/
+typedef struct list_t{
+    unsigned int   nodeSize;                 /*节点大小, 节点为0时则不分别内存*/
+    unsigned int   nodeCount;                /*节点个数*/
+    listnode_t    *pHead;                    /*头节点*/
+    listnode_t    *pTail;                    /*尾节点*/
+}list_t;
 
-typedef struct List{
-    int size;                              /*list node size*/
-    int count;                             /*list node count*/
-    ListNode *head;
-    ListNode *tail;
-}List;
+/*构建一个新的链表*/
+list_t* List_CreateNew(unsigned int size);
+/*销毁一个链表*/
+void List_Delete(list_t *list);
+/*删除链表中的所有节点*/
+void List_Clear(list_t *list);
+/*返回 真(1) 如果这是一个空链表*/
+int List_IsEmpty(list_t *pList);
+/*返回链表的节点个数*/
+int List_Count(list_t *pList);
 
-/*constructs a empty list*/
-List* List_CreateNew(int size);
-/*delete a list*/
-void List_Delete(List *list);
-/*remove all item from the list*/
-void List_Clear(List *list);
-/*create new listnode*/
-ListNode* List_CreateNewNode();
-/*delete a list node*/
-void List_DeleteNode(List *list,ListNode *node);
-inline void List_AddNode(List* list, ListNode* pNode, ListNode* node);
-inline void List_removeNode(List* list, ListNode* node);
+/*在 index 位置插入一个节点*/
+int List_Insert(list_t *pList, void *pValue ,int index);
+/*在头部插入一个节点*/
+int List_PushFront(list_t *pList, void *pValue);
+/*在头部插入一个节点*/
+int List_PushBack(list_t *pList, void *pValue);
 
-/*inserts 'value' at index position 'index' in the list*/
-int List_Insert(List *list, void *value ,int index);
-/*Inserts 'value' at the beginning of the list*/
-int List_PushFront(List *list, void *value);
-/*inserts 'value' at the end of the list*/
-int List_PushBack(List *list, void *value);
+/*删除 index 位置的节点*/
+void List_RemoveAt(list_t *pList, int index);
+/*删除第一个节点*/
+void List_RemoveFrist(list_t *pList);
+/*删除最后一个节点*/
+void List_RemoveLast(list_t *pList);
 
+/*取出 index 位置节点的内容并删除节点*/
+int List_TakeAt(list_t *pList, void *pBuff, int index);
+/*取出第一个节点的内容并删除节点*/
+int List_PopFront(list_t *pList, void *pBuff);
+/*取出最后一个节点的内容并删除节点*/
+int List_PopBack(list_t *pList, void *pBuff);
+/*替换 index 位置节点的内容*/
+int List_Replace(list_t *pList, void *pValue, int index);
 
-/*remvoe the item at 'index' position*/
-int List_RemoveAt(List *list,int index);
-/*remove the frist item in the list*/
-int List_RemoveFrist(List *list);
-/*remove the last item in the list*/
-int List_RemoveLast(List *list);
-
-
-int List_TakeNode(List *list, ListNode *node, char *buff);
-/*remove the item at index position 'index' and return it*/
-int List_TakeAt(List *list, void *buff, int index);
-/*remove the frist itme in the list and return it*/
-int List_PopFront(List *list, void *buff);
-/*remove the last item in the list and return it*/
-int List_PopBack(List *list, void *buff);
+/*返回 index 节点的内容指针*/
+void* List_At(list_t *pList, int index);
+/*返回第一个节点的内容指针*/
+void* List_Frist(list_t *pList);
+/*返回最后一个节点的内容指针*/
+void *List_Last(list_t *pList);
 
 
-/*replaces the item at index position 'index' with 'value'*/
-int List_Replace(List *list, void *value, int index);
+///*return the number of occurrences of 'value' in the list*/
+//int List_ValueCount(list_t *list, void *value);
+///*return the index position of the frist occurrence of 'value' in the list*/
+//int List_Indexof(list_t *list, void *value);
+///*search Str*/
+//void* MListSearchStr(list_t *list, char *value ,int offset);
+///*search Int*/
+//void* MListSearchInt(list_t *list, int value ,int offset);
 
-/*return the node at index postion 'index'*/
-inline ListNode *List_NodeAt(List *list, int index);
-/*return the item at 'index' position*/
-void* List_At(List *list,int index);
-/*return the frist item in the list*/
-void* List_Frist(List *list);
-/*return the last item in the list*/
-void *List_Last(List *list);
+#define LIST_FOREACH_VARIABLE            \
+    list_t*      List_Foreach_pList;     \
+    listnode_t*  List_Foreach_pCurNode;  \
+    listnode_t*  List_Foreach_pNextNode; \
+    unsigned int List_Foreach_index;
 
-/*return 1 is list is empty*/
-int List_IsEmpty(List *list);
-/*return the number of items in the list*/
-int List_Count(List *list);
-/*return the number of occurrences of 'value' in the list*/
-int List_ValueCount(List *list, void *value);
-/*return the index position of the frist occurrence of 'value' in the list*/
-int List_Indexof(List *list, void *value);
+#define LIST_FOREACH(pList)              \
+    List_Foreach_index     =  -1;        \
+    List_Foreach_pList     = (pList);    \
+    List_Foreach_pNextNode = ((0==List_Foreach_pList)?(0):(List_Foreach_pList->pHead));             \
+    while((0==List_Foreach_pNextNode)?(0):((List_Foreach_pCurNode=List_Foreach_pNextNode),          \
+                                           (List_Foreach_pNextNode=List_Foreach_pNextNode->pNext),  \
+                                           (List_Foreach_index++),(1)))
 
-/*search Str*/
-void* MListSearchStr(List *list, char *value ,int offset);
-/*search Int*/
-void* MListSearchInt(List *list, int value ,int offset);
+#define LIST_FOREACH_VALUE (List_Foreach_pCurNode->pData)
+#define LIST_FOREACH_INDEX (List_Foreach_index)
+#define LIST_FOREACH_RM_CURNODE         \
+    List_removeNode(List_Foreach_pList,List_Foreach_pCurNode);  \
+    List_Foreach_pCurNode = 0;
 
-#define List_Foreach_Variable \
-    List*     List_Foreach_qList = 0; \
-    ListNode* List_Foreach_pNode = 0; \
-    ListNode* List_Foreach_qNode = 0;
 
-#define List_Foreach(list) \
-    List_Foreach_qList = list; \
-    List_Foreach_pNode = (0==list)?(0):(List_Foreach_qList->head); \
-    while((0==List_Foreach_pNode)?(0):(List_Foreach_qNode = List_Foreach_pNode,List_Foreach_pNode=List_Foreach_pNode->next,1))
-#define List_Foreach_Value (List_Foreach_qNode->data)
-
-#define List_Foreach_RmCurNode List_removeNode(List_Foreach_qList,List_Foreach_qNode);
 /*watch value*/
 #define WatchInt(x) printf("int %s's value is %d\n",#x,x)
 #define WatchFloat(x) printf("float %s's value is %lf\n",#x,x)
 #define WatchString(x) printf("str %s's value is %s\n",#x,x)
 #define WatchPointer(x) printf("pointer %s's value is %p\n",#x,x)
 #define Mark(x) printf("\nmark: %s\n",#x);
+
 
 #ifdef __cplusplus
 }

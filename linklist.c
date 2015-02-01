@@ -3,342 +3,399 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*constructs a empty list*/
-List* List_CreateNew(int size)
+
+#define LIST_DEBUG_FLAG 1        /*打开输出*/
+/********************************************************************************************/
+/*******************************           宏         ***************************************/
+/********************************************************************************************/
+#if LIST_DEBUG_FLAG
+#define LIST_DEBUG(fmt,args...) printf("DEBUG %s-%d: "fmt"\n",__FUNCTION__,__LINE__,## args);
+#else
+#define LIST_DEBUG(fmt,args...)
+#endif
+
+#define LIST_FREE(ptr) do{if(0==(ptr))break; free(ptr); ptr=0; }while(0)
+/********************************************************************************************/
+/*******************************       静态函数声明     ***************************************/
+/********************************************************************************************/
+/*创建一个新的链表节点*/
+static listnode_t* List_CreateNewNode(list_t *pList, void *pValue);
+/*销毁一个链表节点*/
+static void List_DeleteNode(list_t *pList ,listnode_t *pNode);
+/*添加一个链表节点*/
+static void List_AddNode(list_t* pList, listnode_t* pPrevNode, listnode_t* pCurNode);
+/*移除一个链表节点*/
+static void List_removeNode(list_t* pList, listnode_t* pNode);
+/*返回一个链表节点*/
+static listnode_t *List_NodeAt(list_t *pList, int index);
+/*取出并删除一个节点*/
+static int List_TakeNode(list_t *pList, listnode_t *pNode, char *pBuff);
+/********************************************************************************************/
+/*******************************       函数实现        ***************************************/
+/********************************************************************************************/
+
+/*构建一个新的链表*/
+list_t* List_CreateNew(unsigned int size)
 {
-    List *link = 0;
+    list_t *pList = 0;
 
     do{
-        link = (List*)malloc(sizeof(List));
-        if(0==link) break;
-        memset(link,0,sizeof(List));
+        pList = (list_t*)malloc(sizeof(list_t));
+        if(0==pList) break;
+        memset(pList,0,sizeof(list_t));
 
-        link->size = size;
-        link->head = 0;
-        link->tail = 0;
-        link->count = 0;
+        pList->nodeSize = size;
+        pList->nodeCount = 0;
+        pList->pHead = 0;
+        pList->pTail = 0;
 
-        return link;
+        return pList;
     }while(0);
-    List_Delete(link);
+    List_Delete(pList);
     return 0;
 }
 
-/*delete a list*/
-void List_Delete(List *list)
+/*销毁一个新的链表*/
+void List_Delete(list_t *pList)
 {
-    if(0==list) return;
-    List_Clear(list);
-    List_FREE(list);
+    if(0==pList) return;
+    List_Clear(pList);
+    LIST_FREE(pList);
 }
 
-/*remove all item from the list*/
-void List_Clear(List *list)
+/*删除链表中的所有节点*/
+void List_Clear(list_t *pList)
 {
-    List_Foreach_Variable;
-    List_Foreach(list){
-        List_Foreach_RmCurNode;
+    LIST_FOREACH_VARIABLE;
+    LIST_FOREACH(pList){
+        LIST_FOREACH_RM_CURNODE;
     }
 }
 
-/*create new list node*/
-ListNode* List_CreateNewNode(List *list, void *value)
+/*返回 真(1) 如果这是一个空链表*/
+int List_IsEmpty(list_t *pList)
 {
-    ListNode* node = 0;
+    if(0==pList) return -1;
+    if(0==pList->pHead) return 0;
+    return 1;
+}
 
-    if(0==list || 0==value || 0>list->size) return 0;
+/*返回链表的节点个数*/
+int List_Count(list_t *pList)
+{
+    return (0==pList)?(-1): (int)(pList->nodeCount);
+}
+
+
+/*在 index 位置插入一个节点*/
+int List_Insert(list_t *pList, void *pValue , int index)
+{
+    listnode_t *pNewNode;
+    listnode_t *pPrevNode;
+
+    if(0==pList || 0==pValue) return -1;
 
     do{
-        node = (ListNode*)malloc(sizeof(ListNode));
-        if(0==node) break;
-        memset(node,0,sizeof(ListNode));
-
-        if(0<list->size){
-            node->data = malloc(list->size);
-            if(0==node->data) break;
-            memcpy(node->data,value,list->size);
-        }else{
-            node->data = value;
-        }
-
-        return node;
+        pNewNode = List_CreateNewNode(pList,pValue);
+        if(0==pNewNode) break;
+        pPrevNode = List_NodeAt(pList,index-1);
+        List_AddNode(pList,pPrevNode,pNewNode);
+        return 0;
     }while(0);
-
-    if(0!=node){
-        List_FREE(node->data);
-        List_FREE(node);
-    }
-    return 0;
-}
-
-/*delete list node*/
-void List_DeleteNode(List *list,ListNode *node)
-{
-    if(0==list || 0==node) return;
-    if(0<list->size){
-        List_FREE(node->data);
-    }
-    List_FREE(node);
-}
-
-inline void List_AddNode(List* list, ListNode* pNode, ListNode* node)
-{
-    ListNode* nNode;
-    if(0==list || 0==node) return;
-    nNode = (0==pNode) ? list->head : pNode->next;
-    node->previous = pNode;
-    node->next = nNode;
-    if(0==nNode){
-        list->tail = node;
-    }else{
-        nNode->previous = node;
-    }
-    if(0==pNode){
-        list->head = node;
-    }else{
-        pNode->next = node;
-    }
-    list->count ++;
-}
-
-inline void List_removeNode(List* list, ListNode* node)
-{
-    if(0==list || 0==node) return;
-    if(0!=node->next){
-        node->next->previous = node->previous;
-    }
-    if(0!=node->previous){
-        node->previous->next = node->next;
-    }
-    if(list->head == node){
-        list->head = node->next;
-    }
-    if(list->tail == node){
-        list->tail = node->previous;
-    }
-    List_DeleteNode(list,node);
-    list->count --;
-}
-
-
-/*inserts 'value' at index position 'index' in the list*/
-int List_Insert(List *list, void *value ,int index)
-{
-    ListNode *node;
-    ListNode *pNode;
-
-    if(0==list || 0==value || 0>index) return -1;
-
-    pNode = List_NodeAt(list,index-1);
-    /*constructs a new node*/
-    node = List_CreateNewNode(list,value);
-    if(0==node) return -1;
-    List_AddNode(list,pNode,node);
-
-    return 0;
-}
-
-/*Inserts 'value' at the beginning of the list*/
-int List_PushFront(List *list, void *value)
-{
-    return List_Insert(list,value,0);
-}
-
-/*inserts 'value' at the end of the list*/
-int List_PushBack(List *list, void *value)
-{
-    ListNode *node;
-
-    if(0==list || 0==value) return -1;
-    /*constructs a new node*/
-    node = List_CreateNewNode(list,value);
-    if(0==node) return -1;
-
-    List_AddNode(list,list->tail,node);
-    return 0;
-}
-
-/*remvoe the item at 'index' position*/
-int List_RemoveAt(List *list,int index)
-{
-    ListNode *node;
-    if(0==list || 0==list->head || 0>index) return -1;
-
-    node = List_NodeAt(list,index);
-    List_removeNode(list,node);
-    return 0;
-}
-
-/*remove the frist item in the list*/
-int List_RemoveFrist(List *list)
-{
-    if(0==list) return -1;
-    List_removeNode(list,list->head);
-    return 0;
-}
-
-/*remove the last item in the list*/
-int List_RemoveLast(List *list)
-{
-    if(0==list) return -1;
-    List_removeNode(list,list->tail);
-    return 0;
-}
-
-
-int List_TakeNode(List *list, ListNode *node, char *buff)
-{
-    if(0==list || 0==node || 0==buff) return -1;
-    memcpy(buff,node->data,list->size);
-    List_removeNode(list,node);
-    return 0;
-}
-
-/*remove the item at index position 'index' and return it*/
-int List_TakeAt(List *list, void *buff, int index)
-{
-    if(0==list || 0==buff || 0>index) return -1;
-    return List_TakeNode(list,List_NodeAt(list,index),buff);
-}
-
-/*remove the frist itme in the list and return it*/
-int List_PopFront(List *list, void *buff)
-{
-    if(0==list || 0==buff) return -1;
-    return List_TakeNode(list,list->head,buff);
-}
-
-/*remove the last imte in the list and return it*/
-int List_PopBack(List *list, void *buff)
-{
-    if(0==list || 0==buff) return -1;
-    return List_TakeNode(list,list->tail,buff);
-}
-
-/*replaces the item at index position index with value*/
-int List_Replace(List *list, void *value, int index)
-{
-    ListNode *pNode;
-    if(0==list || 0==value || 0>index) return -1;
-
-    pNode = List_NodeAt(list,index);
-    if(0==pNode) return -1;
-
-    memcpy(pNode->data,value,list->size);
-
-    return 0;
-}
-
-inline ListNode *List_NodeAt(List *list, int index)
-{
-    int n;
-    ListNode *node;
-    if(0==list || 0>index) return 0;
-    node = list->head;
-    for(n=0;n<index;n++){
-        if(0==node) break;
-        node = node->next;
-    }
-    return node;
-}
-
-/*return the item at 'index' position index*/
-void* List_At(List *list,int index)
-{
-    ListNode *node;
-    node = List_NodeAt(list,index);
-    return ((0==node)?0:node->data);
-}
-
-/*return the frist item in the list*/
-void* List_Frist(List *list)
-{
-    return List_At(list,0);
-}
-
-/*return the last item in the list*/
-void *List_Last(List *list)
-{
-    if(0==list) return 0;
-    return ((0==list->tail)?0:list->tail->data);
-}
-
-/*return 1 is list is empty*/
-int List_IsEmpty(List *list)
-{
-    if(0==list || 0==list->head) return 0;
-    else return 1;
-}
-
-/*return the number of items in the list*/
-int List_Count(List *list)
-{
-    return (0==list)?(-1):(list->count);
-}
-
-/*return the number of occurrences of 'value' in the list*/
-int List_ValueCount(List *list, void *value)
-{
-    int num = 0;
-    List_Foreach_Variable;
-    if(0==list) return -1;
-    List_Foreach(list){
-        if(0==memcmp(value,List_Foreach_Value,List_Foreach_qList->size)) num++;
-    }
-    return num;
-}
-
-/*return the index position of the frist occurrence of 'value' in the list*/
-int List_Indexof(List *list, void *value)
-{
-    int num;
-    List_Foreach_Variable;
-    if(0==list) return -1;
-
-    num=0;
-    List_Foreach(list){
-        if(0==memcmp(value,List_Foreach_Value,List_Foreach_qList->size)) return num;
-        num++;
-    }
     return -1;
 }
 
-/*search Str*/
-void* MListSearchStr(List *list, char *value ,int offset)
+/*在头部插入一个节点*/
+int List_PushFront(list_t *pList, void *pValue)
 {
-    ListNode *p;
-    char *str;
+    return List_Insert(pList,pValue,0);
+}
 
-    if(0==list || 0==list->head || 0==value || 0>offset) return 0;
+/*在尾部插入一个节点*/
+int List_PushBack(list_t *pList, void *pValue)
+{
+    listnode_t *pNewNode;
 
-    p = list->head;
-    while(p){
-        str = p->data;
-        str += offset;
-        str = *(char**)str;
-        if(0==strcmp(str,value)) return p->data;
-        p = p->next;
-    }
+    if(0==pList || 0==pValue) return -1;
 
+    do{
+        pNewNode = List_CreateNewNode(pList,pValue);
+        if(0==pNewNode) break;
+        List_AddNode(pList,pList->pTail,pNewNode);
+        return 0;
+    }while(0);
+    return -1;
+}
+
+
+/*删除 index 位置的节点*/
+void List_RemoveAt(list_t *pList,int index)
+{
+    List_removeNode(pList,List_NodeAt(pList,index));
+}
+
+/*删除第一个节点*/
+void List_RemoveFrist(list_t *pList)
+{
+    List_removeNode(pList,pList->pHead);
+}
+
+/*删除最后一个节点*/
+void List_RemoveLast(list_t *pList)
+{
+    List_removeNode(pList,pList->pTail);
+}
+
+/*取出 index 位置节点的内容并删除节点*/
+int List_TakeAt(list_t *pList, void *pBuff, int index)
+{
+    return List_TakeNode(pList,List_NodeAt(pList,index),pBuff);
+}
+
+/*取出第一个节点的内容并删除节点*/
+int List_PopFront(list_t *pList, void *pBuff)
+{
+    if(0==pList) return -1;
+    return List_TakeNode(pList,pList->pHead,pBuff);
+}
+
+/*取出最后一个节点的内容并删除节点*/
+int List_PopBack(list_t *pList, void *pBuff)
+{
+    if(0==pList) return -1;
+    return List_TakeNode(pList,pList->pTail,pBuff);
+}
+
+/*替换 index 位置节点的内容*/
+int List_Replace(list_t *pList, void *pValue, int index)
+{
+    listnode_t *pNode;
+    if(0==pList || 0==pValue) return -1;
+
+    do{
+        pNode = List_NodeAt(pList,index);
+        if(0==pNode) break;
+        memcpy(pNode->pData,pValue,pList->nodeSize);
+        return 0;
+    }while(0);
+    return -1;
+}
+
+
+/*返回 index 节点的内容指针*/
+void* List_At(list_t *pList, int index)
+{
+    listnode_t *pNode;
+    do{
+        pNode = List_NodeAt(pList,index);
+        if(0==pNode) break;
+        return (pNode->pData);
+    }while(0);
     return 0;
 }
 
-/*search int*/
-void* MListSearchInt(List *list, int value ,int offset)
+/*返回第一个节点的内容指针*/
+void* List_Frist(list_t *pList)
 {
-    ListNode *p;
-    char *cp;
+    return List_At(pList,0);
+}
 
-    if(0==list || 0==list->head || 0==value || 0>offset) return 0;
+/*返回最后一个节点的内容指针*/
+void *List_Last(list_t *pList)
+{
+    listnode_t *pNode;
+    if(0==pList) return 0;
+    do{
+        pNode = pList->pTail;
+        if(0==pNode) break;
+        return (pNode->pData);
+    }while(0);
+    return 0;
+}
 
-    p = list->head;
-    while(p){
-        cp = p->data;
-        cp += offset;
 
-        if(*(int*)cp == value) return p->data;
-        p = p->next;
+///*return the number of occurrences of 'value' in the list*/
+//int List_ValueCount(list_t *list, void *value)
+//{
+//    int num = 0;
+//    LIST_FOREACH_VARIABLE;
+//    if(0==list) return -1;
+//    LIST_FOREACH(list){
+//        if(0==memcmp(value,LIST_FOREACH_VALUE,List_Foreach_qList->size)) num++;
+//    }
+//    return num;
+//}
+
+///*return the index position of the frist occurrence of 'value' in the list*/
+//int List_Indexof(list_t *list, void *value)
+//{
+//    int num;
+//    LIST_FOREACH_VARIABLE;
+//    if(0==list) return -1;
+
+//    num=0;
+//    LIST_FOREACH(list){
+//        if(0==memcmp(value,LIST_FOREACH_VALUE,List_Foreach_qList->size)) return num;
+//        num++;
+//    }
+//    return -1;
+//}
+
+///*search Str*/
+//void* MListSearchStr(list_t *list, char *value ,int offset)
+//{
+//    listnode_t *p;
+//    char *str;
+
+//    if(0==list || 0==list->head || 0==value || 0>offset) return 0;
+
+//    p = list->head;
+//    while(p){
+//        str = p->data;
+//        str += offset;
+//        str = *(char**)str;
+//        if(0==strcmp(str,value)) return p->data;
+//        p = p->next;
+//    }
+
+//    return 0;
+//}
+
+///*search int*/
+//void* MListSearchInt(list_t *list, int value ,int offset)
+//{
+//    listnode_t *p;
+//    char *cp;
+
+//    if(0==list || 0==list->head || 0==value || 0>offset) return 0;
+
+//    p = list->head;
+//    while(p){
+//        cp = p->data;
+//        cp += offset;
+
+//        if(*(int*)cp == value) return p->data;
+//        p = p->next;
+//    }
+
+//    return 0;
+//}
+
+
+/********************************************************************************************/
+/*******************************       静态函数实现     ***************************************/
+/********************************************************************************************/
+/*创建一个新的链表节点*/
+static listnode_t* List_CreateNewNode(list_t *pList, void *pValue)
+{
+    listnode_t* pNode = 0;
+
+    if((0==pList) || (0==pValue)) return 0;
+
+    do{
+        pNode = (listnode_t*)malloc(sizeof(listnode_t));
+        if(0==pNode) break;
+        memset(pNode,0,sizeof(listnode_t));
+
+        if(0<pList->nodeSize){
+            pNode->pData = malloc(pList->nodeSize);
+            if(0==pNode->pData) break;
+            memcpy(pNode->pData,pValue,pList->nodeSize);
+        }else{
+            pNode->pData = pValue;
+        }
+
+        return pNode;
+    }while(0);
+
+    List_DeleteNode(pList,pNode);
+    return 0;
+}
+
+/*销毁一个链表节点*/
+static void List_DeleteNode(list_t *pList ,listnode_t *pNode)
+{
+    if((0==pList) || (0==pNode)) return;
+    if(0<(pList->nodeSize)){
+        LIST_FREE(pNode->pData);
+    }
+    LIST_FREE(pNode);
+}
+
+/*添加一个链表节点*/
+static void List_AddNode(list_t* pList, listnode_t* pPrevNode, listnode_t* pCurNode)
+{
+    listnode_t* pNextNode;
+
+    if((0==pList) || (0==pCurNode)) return;
+
+    pNextNode = ((0==pPrevNode) ? pList->pHead : pPrevNode->pNext);
+    pCurNode->pPrev = pPrevNode;
+    pCurNode->pNext = pNextNode;
+
+    if(0==pNextNode){
+        pList->pTail = pCurNode;
+    }else{
+        pNextNode->pPrev = pCurNode;
+    }
+    if(0==pPrevNode){
+        pList->pHead = pCurNode;
+    }else{
+        pPrevNode->pNext = pCurNode;
+    }
+    pList->nodeCount ++;
+}
+
+/*移除一个链表节点*/
+static void List_removeNode(list_t* pList, listnode_t* pNode)
+{
+    if((0==pList) || (0==pNode)) return;
+
+    if(0!=pNode->pNext){
+        pNode->pNext->pPrev = pNode->pPrev;
+    }
+    if(0!=pNode->pPrev){
+        pNode->pPrev->pNext = pNode->pNext;
+    }
+    if(pList->pHead == pNode){
+        pList->pHead = pNode->pNext;
+    }
+    if(pList->pTail == pNode){
+        pList->pTail = pNode->pPrev;
     }
 
+    List_DeleteNode(pList,pNode);
+    pList->nodeCount --;
+}
+
+/*返回一个链表节点*/
+static listnode_t *List_NodeAt(list_t *pList, int index)
+{
+    LIST_FOREACH_VARIABLE;
+    listnode_t *pNodeIndex;
+
+    if(0==pList) return 0;
+    if(0>index) return 0;
+
+    do{
+        pNodeIndex = 0;
+        LIST_FOREACH(pList){
+            if(LIST_FOREACH_INDEX >= index){
+                pNodeIndex = List_Foreach_pCurNode;
+                break;
+            }
+        }
+        if(0==pNodeIndex) break;
+        return pNodeIndex;
+    }while(0);
+    return 0;
+}
+
+/*取出并删除一个节点*/
+static int List_TakeNode(list_t *pList, listnode_t *pNode, char *pBuff)
+{
+    if((0==pList) || (0==pNode) || (0==pBuff)) return -1;
+    memcpy(pBuff,pNode->pData,pList->nodeSize);
+    List_removeNode(pList,pNode);
     return 0;
 }
